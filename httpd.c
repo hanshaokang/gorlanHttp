@@ -37,9 +37,46 @@ int startup(const char *ip,int port)
     return sock;
 }
 
-static void echo_client(int nums)
+static void print_log(char *msg,int level)
 {
+    const char *const level_msg[]={
+        "SUCCESS",
+        "NOTICE",
+        "WARNING",
+        "ERROR",
+        "FATAL"
+    }
+    printf("[%s][%s]\n",log_msg,level_msg[level%5]);
+}
 
+static void request_404(int sock)
+{
+    clear_fdhead(sock);
+    char *msg="HTTP/1.0 404 Not Found\r\n";
+    send(sock,msg,strlen(msg),0);
+    send(sock,"\r\n",strlen("\r\n"),0);
+
+    struct stat st;
+    stat("wwwroot/404.html");
+    int fd=open("wwwroot/404.html",O_RDONLY);
+    send(sock,fd,NULL,st.st_size);
+    close(fd);
+}
+static void echo_client(int sock,int nums)
+{
+    switch(nums)
+    {
+        case 401:
+            break;
+        case 404:
+            request_404(int sock);
+        case 500:
+            break;
+        case 503:
+            break;
+        default:
+            break;
+    }
 }
 
 static void clear_fdhead(int fd)
@@ -124,7 +161,7 @@ static int exec_cgi(int sock,char *method,char *path,char *query_strin)
         }while(ret!=1);
         if(content_len==-1)
         {
-            echo_client(404);
+            echo_client(sock,404);
             return 10;
         }
     }
@@ -142,17 +179,17 @@ static int exec_cgi(int sock,char *method,char *path,char *query_strin)
     int output[2];
     if(pipe(input)<0)
     {
-        echo_client(500);
+        echo_client(sock,500);
         return 12;
     }
     if(pipe(output)<0)
     {
-        echo_client(500);
+        echo_client(sock,500);
         return 13;
     }
     pid_t id=fork();
     if(id<0){
-        echo_client(500);
+        echo_client(sock,500);
         return 11;
     }
     else if(id==0)
@@ -310,7 +347,7 @@ void *handler_request(void *arg)
     }
 end:
     //nums is errno..
-    echo_client(nums);
+    echo_client(sock,nums);
     close(fd);
     return (void *)ret;
 }
